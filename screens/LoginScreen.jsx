@@ -12,6 +12,14 @@ import { doc, getDoc } from "firebase/firestore";
 import { db } from "../firebase/config";
 import bcrypt from "bcryptjs";
 
+bcrypt.setRandomFallback((len) => {
+  const buf = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    buf[i] = Math.floor(Math.random() * 256);
+  }
+  return buf;
+});
+
 export default function LoginScreen({ navigation }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
