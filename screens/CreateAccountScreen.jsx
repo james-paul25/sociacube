@@ -35,10 +35,15 @@ export default function CreateAccountScreen() {
         username,
         password: hashedPassword,
         createdAt: serverTimestamp(),
+        lastLogin: serverTimestamp(),
       });
 
       Alert.alert("Account Created", `Welcome, ${name}!`);
       console.log("User created successfully:", { name, email, username });
+      setName("");
+      setEmail("");
+      setUsername("");
+      setPassword("");
     } catch (error) {
       console.error("Error creating user:", error);
       Alert.alert("Error", "Something went wrong while creating the account.");

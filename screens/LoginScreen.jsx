@@ -8,9 +8,10 @@ import {
   Text,
   TouchableOpacity,
 } from "react-native";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase/config";
 import bcrypt from "bcryptjs";
+import HomeScreen from "./HomeScreen";
 
 bcrypt.setRandomFallback((len) => {
   const buf = new Uint8Array(len);
@@ -48,8 +49,21 @@ export default function LoginScreen({ navigation }) {
         return;
       }
 
+      // Successful login
+      // Updating the lastLogin field
+      await updateDoc(userRef, {
+        lastLogin: serverTimestamp(),
+      });
       Alert.alert("Success", `Welcome back, ${userData.name}!`);
-      // You can navigate to HomeScreen here later if needed
+      navigation.navigate("Home", {
+        user: {
+          name: userData.name,
+          email: userData.email,
+          username: userData.username,
+          password: userData.password,
+          createdAt: userData.createdAt,
+        },
+      });
     } catch (error) {
       console.error("Login error:", error);
       Alert.alert("Error", "Something went wrong while logging in.");
