@@ -1,55 +1,99 @@
-import React, { useEffect } from "react";
-import { View, Button, StyleSheet, Alert } from "react-native";
-import * as Google from "expo-auth-session/providers/google";
-import * as WebBrowser from "expo-web-browser";
-import { signInWithCredential, GoogleAuthProvider } from "firebase/auth";
-import { auth } from "../firebase/config.js";
+import React, { useState } from "react";
+import {
+  View,
+  TextInput,
+  Button,
+  Alert,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+} from "react-native";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "../firebase/config";
+import bcrypt from "bcryptjs";
 
-WebBrowser.maybeCompleteAuthSession();
+export default function LoginScreen({ navigation }) {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
 
-export default function LoginScreen() {
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    expoClientId: process.env.EXPO_PUBLIC_EXPO_CLIENT_ID,
-    androidClientId: process.env.EXPO_PUBLIC_ANDROID_CLIENT_ID,
-    iosClientId: process.env.EXPO_PUBLIC_IOS_CLIENT_ID,
-  });
-
-  useEffect(() => {
-    if (response?.type === "success") {
-      const { id_token } = response.params;
-      const credential = GoogleAuthProvider.credential(id_token);
-      signInWithCredential(auth, credential)
-        .then(() => {
-          Alert.alert("Login Successful", "You are now logged in!");
-          const user = userCredential.user;
-          console.log("Signed in:", {
-            name: user.displayName,
-            email: user.email,
-            photo: user.photoURL,
-          });
-          // Navigate to the homepage after successful login
-        })
-        .catch((err) => {
-          Alert.alert("Error", err.message);
-        });
+  const handleLogin = async () => {
+    if (!username || !password) {
+      Alert.alert("Missing Fields", "Please enter both username and password.");
+      return;
     }
-  }, [response]);
+
+    try {
+      const userRef = doc(db, "users", username);
+      const userSnap = await getDoc(userRef);
+
+      if (!userSnap.exists()) {
+        Alert.alert("User Not Found", "No account found with that username.");
+        return;
+      }
+
+      const userData = userSnap.data();
+      const isPasswordValid = bcrypt.compareSync(password, userData.password);
+
+      if (!isPasswordValid) {
+        Alert.alert("Incorrect Password", "The password you entered is wrong.");
+        return;
+      }
+
+      Alert.alert("Success", `Welcome back, ${userData.name}!`);
+      // You can navigate to HomeScreen here later if needed
+    } catch (error) {
+      console.error("Login error:", error);
+      Alert.alert("Error", "Something went wrong while logging in.");
+    }
+  };
 
   return (
     <View style={styles.container}>
-      <Button
-        title="Sign in with Google"
-        disabled={!request}
-        onPress={() => promptAsync()}
+      <Text style={styles.title}>Login</Text>
+
+      <TextInput
+        placeholder="Username"
+        value={username}
+        onChangeText={setUsername}
+        style={styles.input}
+        autoCapitalize="none"
       />
+      <TextInput
+        placeholder="Password"
+        value={password}
+        onChangeText={setPassword}
+        style={styles.input}
+        secureTextEntry
+      />
+
+      <Button title="Login" onPress={handleLogin} />
+
+      <TouchableOpacity onPress={() => navigation.navigate("CreateAccount")}>
+        <Text style={styles.createText}>Don't have an account? Create one</Text>
+      </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
+  container: { flex: 1, justifyContent: "center", padding: 20 },
+  title: {
+    fontSize: 24,
+    fontWeight: "bold",
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: "#ccc",
+    padding: 10,
+    marginBottom: 10,
+    borderRadius: 5,
+  },
+  createText: {
+    marginTop: 15,
+    textAlign: "center",
+    color: "#1e90ff",
+    textDecorationLine: "underline",
   },
 });
