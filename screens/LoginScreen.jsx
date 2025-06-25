@@ -36,6 +36,7 @@ export default function LoginScreen({ navigation }) {
 
       if (!isPasswordValid) {
         Alert.alert("Incorrect Password", "The password you entered is wrong.");
+        setPassword("");
         return;
       }
 
