@@ -20,8 +20,6 @@ export default function App() {
 }
 // This is the main entry point of the application.
 // It sets up the navigation structure using React Navigation.
-// The app starts with the Login screen, and users can navigate to Home or Create Account screens.
 // The header is hidden for a cleaner look, and the app uses a stack navigator to manage screen transitions.
-// The Home screen displays user information after a successful login, while the Create Account screen allows new users to register.
 // The app uses Firebase for user authentication and data storage, with bcrypt for password hashing.
 // The NavigationContainer wraps the entire app to manage navigation state and linking.
