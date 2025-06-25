@@ -11,7 +11,6 @@ import {
 import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase/config";
 import bcrypt from "bcryptjs";
-import HomeScreen from "./HomeScreen";
 
 bcrypt.setRandomFallback((len) => {
   const buf = new Uint8Array(len);
@@ -54,6 +53,7 @@ export default function LoginScreen({ navigation }) {
       await updateDoc(userRef, {
         lastLogin: serverTimestamp(),
       });
+
       Alert.alert("Success", `Welcome back, ${userData.name}!`);
       navigation.navigate("Home", {
         user: {
