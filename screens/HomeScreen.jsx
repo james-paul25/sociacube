@@ -240,14 +240,14 @@ export default function HomeScreen({ route }) {
         renderItem={({ item, index }) => (
           <TouchableOpacity onLongPress={() => handleDelete(item.id)}>
             <Text style={styles.solveItem}>
-              #{index + 1} ⏱ {item.time} 🧩 {item.scramble}
+              #{index + 1} {item.time} - {item.scramble}
             </Text>
           </TouchableOpacity>
         )}
       />
 
-      <Text style={styles.average}>🔥 Ao5: {calculateAverage(5)}</Text>
-      <Text style={styles.average}>🔥 Ao12: {calculateAverage(12)}</Text>
+      <Text style={styles.average}>Ao5: {calculateAverage(5)}</Text>
+      <Text style={styles.average}>Ao12: {calculateAverage(12)}</Text>
     </TouchableOpacity>
   );
 }
