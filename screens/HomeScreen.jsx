@@ -3,27 +3,52 @@ import {
   View,
   Text,
   StyleSheet,
-  Button,
   FlatList,
   Alert,
-  Pressable,
-  Platform,
   TouchableOpacity,
 } from "react-native";
+import { Picker } from "@react-native-picker/picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import {
-  collection,
-  addDoc,
-  deleteDoc,
-  doc,
-  serverTimestamp,
-} from "firebase/firestore";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase/config";
-import generateScramble from "cube-scramble";
+
+const cubeTypes = ["2x2", "3x3", "3x3 OH", "Pyraminx"];
+
+const generateScramble = (type) => {
+  const moves = [
+    "U",
+    "D",
+    "L",
+    "R",
+    "F",
+    "B",
+    "U'",
+    "D'",
+    "L'",
+    "R'",
+    "F'",
+    "B'",
+  ];
+  const scrambleLength =
+    type === "2x2"
+      ? 10
+      : type === "3x3"
+      ? 23
+      : type === "3x3 OH"
+      ? 23
+      : type === "Pyraminx"
+      ? 12
+      : 20;
+  let scramble = [];
+  for (let i = 0; i < scrambleLength; i++) {
+    const move = moves[Math.floor(Math.random() * moves.length)];
+    scramble.push(move);
+  }
+  return scramble.join(" ");
+};
 
 export default function HomeScreen({ route }) {
-  const { user } = route.params;
-
+  const { user } = route.params || {};
   const [startTime, setStartTime] = useState(null);
   const [elapsed, setElapsed] = useState(0);
   const [running, setRunning] = useState(false);
@@ -31,31 +56,31 @@ export default function HomeScreen({ route }) {
   const [inspectionActive, setInspectionActive] = useState(false);
   const [solves, setSolves] = useState([]);
   const [scramble, setScramble] = useState("");
+  const [bestTime, setBestTime] = useState(null);
+  const [cubeType, setCubeType] = useState("3x3");
 
   useEffect(() => {
-    const loadSolves = async () => {
-      const stored = await AsyncStorage.getItem("solves");
-      if (stored) setSolves(JSON.parse(stored));
-    };
     loadSolves();
-    newScramble();
+    generateNewScramble();
+  }, [cubeType]);
 
-    // Spacebar support (web only)
-    const handleKeyDown = (e) => {
-      if (e.code === "Space") {
-        e.preventDefault();
-        handleStartStop();
-      }
-    };
-    if (Platform.OS === "web") {
-      window.addEventListener("keydown", handleKeyDown);
+  const loadSolves = async () => {
+    try {
+      const stored = await AsyncStorage.getItem(`solves-${cubeType}`);
+      if (stored) setSolves(JSON.parse(stored));
+    } catch (error) {
+      console.error("Failed to load solves", error);
     }
-    return () => {
-      if (Platform.OS === "web") {
-        window.removeEventListener("keydown", handleKeyDown);
-      }
-    };
-  }, []);
+  };
+
+  const saveSolves = async (newList) => {
+    setSolves(newList);
+    try {
+      await AsyncStorage.setItem(`solves-${cubeType}`, JSON.stringify(newList));
+    } catch (error) {
+      console.error("Failed to save solves", error);
+    }
+  };
 
   useEffect(() => {
     let interval;
@@ -70,13 +95,18 @@ export default function HomeScreen({ route }) {
   useEffect(() => {
     let timer;
     if (inspectionActive && inspection > 0) {
-      timer = setTimeout(() => setInspection(inspection - 1), 1000);
-    } else if (inspection === 0) {
+      timer = setTimeout(() => setInspection((prev) => prev - 1), 1000);
+    } else if (inspection === 0 && inspectionActive) {
       setInspectionActive(false);
       handleStart();
     }
     return () => clearTimeout(timer);
   }, [inspectionActive, inspection]);
+
+  const generateNewScramble = () => {
+    const newScramble = generateScramble(cubeType);
+    setScramble(newScramble);
+  };
 
   const formatTime = (ms) => {
     const s = Math.floor(ms / 1000);
@@ -107,29 +137,28 @@ export default function HomeScreen({ route }) {
       time: solveTime,
       raw: time,
       scramble: scramble,
+      cubeType,
       createdAt: new Date(),
     };
 
     const updatedSolves = [newSolve, ...solves.slice(0, 11)];
-    setSolves(updatedSolves);
-    await AsyncStorage.setItem("solves", JSON.stringify(updatedSolves));
+    saveSolves(updatedSolves);
+
+    if (!bestTime || time < bestTime.raw) {
+      setBestTime(newSolve);
+    }
 
     try {
-      await addDoc(collection(db, "users", userData.username, "solves"), {
+      await addDoc(collection(db, "users", user.username, "solves"), {
         ...newSolve,
-        username: userData.username,
+        username: user.username,
         timestamp: serverTimestamp(),
       });
     } catch (err) {
-      console.warn("❌ Firestore sync failed", err);
+      console.warn("Firestore sync failed", err);
     }
 
-    newScramble();
-  };
-
-  const newScramble = () => {
-    const scramble = generateScramble();
-    setScramble(scramble);
+    generateNewScramble();
   };
 
   const calculateAverage = (count) => {
@@ -144,27 +173,51 @@ export default function HomeScreen({ route }) {
 
   const handleDelete = async (id) => {
     Alert.alert("Delete Solve", "Are you sure?", [
-      {
-        text: "Cancel",
-        style: "cancel",
-      },
+      { text: "Cancel", style: "cancel" },
       {
         text: "Delete",
         style: "destructive",
         onPress: async () => {
-          const updated = solves.filter((s) => s.id !== id);
-          setSolves(updated);
-          await AsyncStorage.setItem("solves", JSON.stringify(updated));
-
-          // Optional: delete from Firestore if you stored the ID
+          try {
+            const solveToDelete = solves.find((s) => s.id === id);
+            if (solveToDelete) {
+              await deleteDoc(
+                doc(
+                  db,
+                  "users",
+                  user.username,
+                  "solves",
+                  solveToDelete.firestoreId
+                )
+              );
+            }
+            const updated = solves.filter((s) => s.id !== id);
+            saveSolves(updated);
+          } catch (error) {
+            console.error("Failed to delete solve", error);
+          }
         },
       },
     ]);
   };
 
   return (
-    <Pressable style={styles.container} onPress={handleStartStop}>
-      <Text style={styles.title}>Welcome, {user?.name}!</Text>
+    <TouchableOpacity
+      style={styles.container}
+      onPress={handleStartStop}
+      activeOpacity={1}
+    >
+      <Text style={styles.title}>Welcome, {user?.name || "Socia Cuber"}!</Text>
+
+      <Picker
+        selectedValue={cubeType}
+        style={{ height: 50, width: 200 }}
+        onValueChange={(itemValue) => setCubeType(itemValue)}
+      >
+        {cubeTypes.map((type) => (
+          <Picker.Item key={type} label={type} value={type} />
+        ))}
+      </Picker>
 
       <Text style={styles.scramble}>Scramble: {scramble}</Text>
 
@@ -172,6 +225,12 @@ export default function HomeScreen({ route }) {
         <Text style={styles.inspection}>Inspection: {inspection}s</Text>
       ) : (
         <Text style={styles.timer}>{formatTime(elapsed)}</Text>
+      )}
+
+      {bestTime && (
+        <Text style={styles.best}>
+          Best Time ({cubeType}): {bestTime.time}
+        </Text>
       )}
 
       <Text style={styles.subtitle}>Last Solves (Tap to Delete):</Text>
@@ -189,7 +248,7 @@ export default function HomeScreen({ route }) {
 
       <Text style={styles.average}>🔥 Ao5: {calculateAverage(5)}</Text>
       <Text style={styles.average}>🔥 Ao12: {calculateAverage(12)}</Text>
-    </Pressable>
+    </TouchableOpacity>
   );
 }
 
@@ -226,5 +285,12 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontWeight: "bold",
     color: "#008080",
+  },
+  best: {
+    fontSize: 16,
+    marginTop: 10,
+    fontWeight: "bold",
+    color: "green",
+    textAlign: "center",
   },
 });
